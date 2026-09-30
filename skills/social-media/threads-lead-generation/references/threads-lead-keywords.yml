@@ -1,0 +1,60 @@
+# threads-lead-keywords.yml
+
+# === Target Keywords ===
+# These words MUST appear in the caption to classify as a potential lead
+
+topic_keywords:
+  - "daftar merek"
+  - "pendaftaran merek"
+  - "merek dagang"
+  - "hak cipta"
+  - "paten"
+  - "hki"
+  - "kekayaan intelektual"
+  - "trademark"
+  - "brand registration"
+
+intent_keywords:
+  - "rekomendasi"
+  - "spill"
+  - "cari jasa"
+  - "butuh jasa"
+  - "mau daftar"
+  - "caranya daftar"
+  - "bisa bantu"
+  - "bantuan"
+  - "mohon petunjuknya"
+  - "boleh saya daftar"
+
+# === Exclude Keywords ===
+# Any caption containing these is automatically filtered out (competitor/promo content)
+
+exclude_keywords:
+  - "terima jasa"
+  - "promo"
+  - "harga murah"
+  - "hubungi wa"
+  - "dm saya"
+  - "dm kakk"
+  - "dm kami"
+  - "konsultan hki"
+  - "jasa pendaftaran"
+  - "kami menyediakan"
+  - "buka sesi"
+  - "ready stock"
+  - "order sekarang"
+  - "kontak kami"
+  - "minat hubungi"
+
+# === Username Exclusions ===
+# Accounts with these in their username are always filtered out
+
+exclude_usernames:
+  - "legal"
+  - "law"
+  - "konsultan"
+  - "advokat"
+  - "notaris"
+  - "kemenkum"
+  - "official"
+  - "patenindo"

@@ -1,0 +1,68 @@
+# ── credentials & secrets (NEVER commit) ──────────────────────────────
+.env
+.env.*
+*.env
+*.env.*
+auth.json
+auth.lock
+credentials.json
+credentials*.json
+*token*.json
+*secret*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+.storage_state.json
+storage_state*.json
+threads_auth_state.json
+threads_auth*.json
+cookies*.txt
+cookies*.json
+*_cookie*.json
+gateway_state.json
+gateway.pid
+
+# ── runtime state / databases ─────────────────────────────────────────
+state.db
+state.db-shm
+state.db-wal
+hermes_state.db
+autoreply.db
+response_store.db*
+processes.json
+.hermes_history
+hermes-history*
+*.db-wal
+*.db-shm
+
+# ── runtime dirs / caches ─────────────────────────────────────────────
+sessions/
+logs/
+cache/
+image_cache/
+audio_cache/
+document_cache/
+browser_screenshots/
+checkpoints/
+sandboxes/
+backups/
+bin/
+node_modules/
+*.log
+
+# ── skills hub index cache (48MB, regenerated) ────────────────────────
+skills/.hub/
+
+# ── local-only escape hatch (never overwritten by `profile update`) ───
+local/
+distribution.yaml.lock
+
+# ── misc ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.DS_Store
+
+# ── explicit allow — MUST stay last (git: last matching rule wins) ────
+!.env.template
