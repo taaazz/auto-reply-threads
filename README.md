@@ -55,7 +55,7 @@ Distribusi ini **tidak memerlukan variabel lingkungan apa pun**. Alur kerja hany
 butuh dua hal:
 
 1. **Sesi Threads** — berkas `storage_state.json`, dibuat dengan mengekspor sesi
-   login browser (lihat [§5.1](#51-langkah-1--ekspor-sesi-di-mesin-berdisplay)).
+   login browser (lihat [§4.2](#42-ekspor-sesi-login-di-laptop)).
    Simpan di luar repositori; berkas ini sudah tercakup `.gitignore`.
 2. **Model LLM** — spesifik per mesin, jadi tidak ikut di-ship. Konfigurasikan
    sekali di mesin tujuan:
@@ -147,155 +147,54 @@ debug ada di [§5](#5-alur-penggunaan-playwright).
 
 ## 4. Penyiapan Playwright
 
-Seluruh otomasi berjalan di atas **Playwright** (Chromium). Bagian ini adalah
-prosedur penyiapan di mesin baru. Nomor versi di bawah adalah versi yang
-diverifikasi saat dokumen ini ditulis.
+Tiga langkah saja: pasang Playwright di VPS, ekspor sesi di laptop, kirim berkas
+sesi ke VPS.
 
-### 4.1 Prasyarat
-
-| Komponen | Versi terverifikasi | Keterangan |
-|---|---|---|
-| Python | 3.10+ | runtime skrip Playwright |
-| Playwright (Python) | `1.63.0` | paket `playwright` |
-| Chromium (Playwright build) | `chromium-1243` | diunduh ke `~/.cache/ms-playwright` |
-| Node.js | 22.x | hanya untuk skrip `threads-scrape-verify.js` |
-| Display (X server) | — | hanya untuk tahap ekspor sesi (§5.1) |
-
-Server tanpa layar dapat menjalankan seluruh tahap otomatis dengan
-`headless=True`; yang tidak bisa dilakukan di sana hanyalah login manual.
-
-### 4.2 Instalasi Python + Chromium
-
-Gunakan virtual environment agar versi Playwright tidak berbenturan dengan paket
-sistem.
+### 4.1 Pasang Playwright di VPS
 
 ```bash
 python3 -m venv ~/threads-venv
-~/threads-venv/bin/pip install --upgrade pip
 ~/threads-venv/bin/pip install playwright
 ~/threads-venv/bin/playwright install chromium
 ```
 
-`playwright install chromium` mengunduh binary browser (~400 MB) ke
-`~/.cache/ms-playwright`. Langkah ini **tidak** memasang pustaka sistem yang
-dibutuhkan Chromium. Di container atau server minimal, jalankan sebagai root:
+Cek cepat bahwa Chromium bisa dibuka:
 
 ```bash
-~/threads-venv/bin/playwright install-deps chromium
-```
-
-Tanpa langkah tersebut, launch gagal dengan
-`error while loading shared libraries: libgbm.so.1` atau serupa
-(`libnss3`, `libatk-1.0`, `libasound2`).
-
-Untuk menempatkan binary browser di lokasi lain (mis. volume terpisah atau
-image read-only), set sebelum instalasi:
-
-```bash
-export PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
-~/threads-venv/bin/playwright install chromium
-```
-
-### 4.3 Node.js opsional
-
-Skrip verifikasi payload `skills/social-media/threads-lead-generation/scripts/threads-scrape-verify.js`
-hanya memakai modul bawaan Node (`fs`, `path`) — tidak perlu memasang Playwright
-versi Node:
-
-```bash
-node -v
-node skills/social-media/threads-lead-generation/scripts/threads-scrape-verify.js hasil.html
-```
-
-Jika ingin Playwright versi Node untuk keperluan lain:
-
-```bash
-npm init -y && npm install --save-dev playwright
-npx playwright install chromium
-```
-
-### 4.4 Verifikasi instalasi
-
-Jalankan skrip berikut untuk memastikan browser bisa launch, context stealth
-aktif, dan ekspor `storage_state` berfungsi. Skrip tidak membuka Threads dan
-tidak butuh sesi.
-
-```python
-# pw_check.py
+~/threads-venv/bin/python - <<'EOF'
 import asyncio
 from playwright.async_api import async_playwright
 
 async def main():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
-        )
-        context = await browser.new_context(
-            user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
-            viewport={"width": 1280, "height": 800},
-        )
-        await context.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-        )
-        page = await context.new_page()
-        await page.goto("https://example.com", wait_until="domcontentloaded")
-        print("navigator.webdriver =", await page.evaluate("navigator.webdriver"))
-        print("userAgent           =", await page.evaluate("navigator.userAgent"))
-        await context.storage_state(path="/tmp/pw_state.json")
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+        page = await (await browser.new_context()).new_page()
+        await page.goto("https://example.com")
+        print("OK:", await page.title())
         await browser.close()
 
 asyncio.run(main())
+EOF
 ```
+
+Keluaran `OK: Example Domain` berarti sudah siap. Versi terverifikasi: Python
+3.12, Playwright `1.63.0`, Chromium build `1243` (±400 MB di
+`~/.cache/ms-playwright`).
+
+Bila launch gagal dengan `error while loading shared libraries` (`libgbm.so.1`,
+`libnss3`, dan sejenisnya), pasang dependensi sistem sekali saja sebagai root:
 
 ```bash
-~/threads-venv/bin/python pw_check.py
+~/threads-venv/bin/playwright install-deps chromium
 ```
 
-Keluaran yang diharapkan:
-
-```
-navigator.webdriver = None
-userAgent           = Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-```
-
-`None` berarti `add_init_script` berjalan dan flag otomatisasi berhasil
-disembunyikan. Jika tercetak `True`, init script dipasang setelah navigasi
-pertama — urutan pemanggilan harus diperbaiki sebelum lanjut.
-
-### 4.5 Variabel lingkungan runtime
-
-Tidak ada variabel yang wajib. Variabel berikut hanya untuk menyesuaikan runtime
-Playwright:
-
-| Variabel | Fungsi |
-|---|---|
-| `PLAYWRIGHT_BROWSERS_PATH` | lokasi binary browser selain `~/.cache/ms-playwright` |
-| `PLAYWRIGHT_DOWNLOAD_HOST` | mirror unduhan untuk jaringan terbatas |
-| `PWDEBUG=1` | membuka Playwright Inspector (butuh display; gunakan pada tahap debug) |
-| `DEBUG=pw:api` | log detail seluruh pemanggilan API Playwright |
-
-Pasang paket pada venv yang sama dengan yang dipakai agen, agar pemanggilan
-`playwright` tidak jatuh ke instalasi sistem yang berbeda:
-
-```bash
-~/threads-venv/bin/python skrip.py
-```
-
-## 5. Alur Penggunaan Playwright
-
-Bagian ini merinci pemakaian Playwright dari ekspor sesi sampai balasan
-terverifikasi terkirim.
-
-### 5.1 Langkah 1 — Ekspor sesi di mesin berdisplay
+### 4.2 Ekspor sesi login di laptop
 
 Login tidak pernah dilakukan otomatis karena memicu CAPTCHA dan verifikasi dua
-faktor. Sesi diambil dari browser yang sudah diverifikasi manusia, lalu diekspor
-menjadi berkas state.
+faktor. Lakukan sekali di mesin yang punya layar:
 
 ```python
-# export_session.py — jalankan di mesin yang punya layar (laptop operator)
+# export_session.py — jalankan di laptop
 import asyncio
 from playwright.async_api import async_playwright
 
@@ -305,45 +204,43 @@ async def main():
         context = await browser.new_context()
         page = await context.new_page()
         await page.goto("https://www.threads.net/login")
-
-        await asyncio.get_event_loop().run_in_executor(
-            None, input, "Login manual di jendela browser, lalu tekan Enter di terminal..."
-        )
-
+        input("Login manual di jendela browser, lalu tekan Enter di terminal...")
         await context.storage_state(path="storage_state.json")
-        print("state tersimpan")
+        print("tersimpan")
         await browser.close()
 
 asyncio.run(main())
 ```
 
-Catatan penting:
+`headless=False` hanya bisa di mesin berlayar. Di server tanpa X server, launch
+gagal dengan `Looks like you launched a headed browser without having a XServer
+running` — karena itu ekspor dilakukan di laptop, bukan di VPS.
 
-- Tahap ini **wajib** dijalankan pada mesin berdisplay. Launch `headless=False`
-  di server tanpa X server gagal sebelum ada halaman terbuka dengan pesan
-  `Looks like you launched a headed browser without having a XServer running`.
-- `xvfb-run` hanya menolong bila masih ada manusia yang dapat menyelesaikan login
-  di jendela tak terlihat tersebut.
-- Di Windows, mencetak emoji ke konsol cp1252 memunculkan `UnicodeEncodeError`
-  **setelah** berkas tersimpan. Ekspornya sudah berhasil; jangan mengulang login.
-- Periksa isi berkas sebelum dipindahkan: harus memuat cookie `sessionid` untuk
-  domain `threads.net`.
+Di Windows, `UnicodeEncodeError` saat mencetak emoji muncul **setelah** berkas
+tersimpan; ekspornya sudah berhasil, tidak perlu mengulang login.
 
-### 5.2 Langkah 2 — Pindahkan state ke runner
+### 4.3 Kirim sesi ke VPS
 
 ```bash
-scp storage_state.json user@runner:/root/storage_state.json
-ssh user@runner 'chmod 600 /root/storage_state.json && ls -l /root/storage_state.json'
+scp storage_state.json root@VPS:/root/storage_state.json
+ssh root@VPS 'chmod 600 /root/storage_state.json'
 ```
 
-Simpan di luar repositori. Pola `storage_state*.json` sudah masuk `.gitignore`,
-tetapi menempatkannya di direktori rumah tetap lebih aman.
+Selesai. `storage_state.json` disimpan di luar repositori dan sudah tercakup
+`.gitignore`. Sesi mati bila logout, ganti password, atau diputus Meta — bila
+muncul halaman `Continue with Instagram`, ulangi 4.2 lalu 4.3.
 
-### 5.3 Langkah 3 — Bangun context browser (stealth)
+## 5. Alur Penggunaan Playwright
 
-Semua skrip otomasi memakai context berikut. Tiga penyesuaian di dalamnya yang
-membuat sesi tidak langsung ditolak: User-Agent desktop, `viewport` tetap, dan
-penghapusan `navigator.webdriver`.
+Dengan venv dari [§4.1](#41-pasang-playwright-di-vps) dan sesi dari
+[§4.3](#43-kirim-sesi-ke-vps), agen siap dipakai:
+
+```bash
+hermes -p promo-in chat
+```
+
+Context browser yang dipakai selalu sama — tiga penyesuaian di dalamnya (User-Agent,
+viewport, `navigator.webdriver`) yang membuat sesi tidak cepat ditolak:
 
 ```python
 browser = await p.chromium.launch(
@@ -362,100 +259,50 @@ await context.add_init_script(
 page = await context.new_page()
 ```
 
-`add_init_script` harus dipanggil **sebelum** `new_page()` pertama. Flag
-`--no-sandbox` diperlukan saat berjalan sebagai root atau di dalam container.
+`add_init_script` harus dipanggil sebelum `new_page()`.
 
-### 5.4 Langkah 4 — Scraping (baca) postingan lead
+### Membalas satu postingan
 
-1. Buka halaman pencarian atau permalink: `await page.goto(url, wait_until="networkidle")`.
-2. Beri jeda render React: `await page.wait_for_timeout(3000)`.
-3. Ambil HTML: `html = await page.content()`, simpan ke berkas.
-4. Ekstrak payload: Threads mengirim data server-side pada `__NEXT_DATA__` /
-   payload Relay. Verifikasi struktur dengan:
-
-```bash
-node skills/social-media/threads-lead-generation/scripts/threads-scrape-verify.js hasil.html
-```
-
-5. Saring kandidat memakai daftar kata kunci di
-   `skills/social-media/threads-lead-generation/references/threads-lead-keywords.yml`
-   dan panduan penyaringan di `skills/social-media/threads-automation/references/keyword-guide.md`.
-
-Baca **tidak** membuktikan sesi masih hidup: pencarian dan permalink tetap
-mengembalikan data walau cookie sudah mati, karena payload dikirim oleh server.
-Hanya jalur tulis (§5.5) yang membuktikan validitas sesi.
-
-### 5.5 Langkah 5 — Membalas (tulis)
-
-Hanya otomasi browser yang dapat membalas postingan milik akun lain; Graph API
-Meta tidak mendukungnya (lihat
-`skills/social-media/threads-automation/references/session-and-auth.md`).
-
-1. **Tuju URL postingan langsung:**
-   `https://www.threads.net/@{username}/post/{post_id}`
-2. **Tunggu halaman siap:**
-   `await page.goto(url, wait_until="networkidle")` lalu `await page.wait_for_timeout(4000)`.
-3. **Pastikan sudah login:** bila muncul ajakan `Continue with Instagram`, sesi
-   tidak valid — hentikan proses dan ekspor ulang `storage_state.json`.
-4. **Isi kolom balasan:**
+1. Buka `https://www.threads.net/@{username}/post/{post_id}` dengan
+   `wait_until="networkidle"`, lalu tunggu 4 detik.
+2. Pastikan tidak ada ajakan `Continue with Instagram`. Bila ada, sesi mati —
+   ulangi [§4.2](#42-ekspor-sesi-login-di-laptop) dan [§4.3](#43-kirim-sesi-ke-vps).
+3. Isi kolom balasan lalu kirim:
 
 ```python
-box = page.locator("div[role='textbox']").first      # atau div[contenteditable='true']
+box = page.locator("div[role='textbox']").first
 await box.click()
 await box.fill(REPLY)
-await box.press("Enter")                              # alternatif: klik tombol Post
+await box.press("Enter")                      # alternatif: klik tombol Post
 ```
 
-   Alternatif tombol:
-   `await page.locator("div[role='button']:has-text('Post')").first.click()`
-5. **Tunggu overlay selesai:** `await page.wait_for_timeout(5000)` untuk memberi
-   waktu overlay `Posting...` hilang.
-6. **Verifikasi sebelum melaporkan sukses:** pastikan teks balasan benar-benar
-   ter-render di dalam thread. Overlay hilang saja bukan bukti balasan terkirim.
-7. **Jeda antar balasan:** 10–30 detik, dan variasikan kalimat antar balasan —
-   teks identik pada banyak akun adalah sinyal spam paling jelas.
-8. **Isi balasan:** 1–3 kalimat berisi fakta produk, tanpa ajakan DM dan tanpa
-   tawaran konsultasi; arahkan ke `example.com` atau sebut `@yourbrand`.
+4. Tunggu ~5 detik sampai overlay `Posting...` hilang, lalu pastikan teks balasan
+   benar-benar ter-render di dalam thread sebelum melaporkan sukses.
+5. Jeda 10–30 detik antar balasan dan variasikan kalimatnya.
 
-### 5.6 Langkah 6 — Debugging dan verifikasi visual
+Isi balasan: 1–3 kalimat berisi fakta produk, tanpa ajakan DM dan tanpa tawaran
+konsultasi; arahkan ke `example.com` atau sebut `@yourbrand`.
 
-Helper yang paling sering dipakai saat selector berubah:
+### Kalau bermasalah
+
+| Gejala | Tindakan |
+|---|---|
+| `Looks like you launched a headed browser without having a XServer running` | jangan pakai `headless=False` di VPS; ekspor sesi di laptop |
+| `Executable doesn't exist at .../ms-playwright/chromium-...` | `playwright install chromium` belum dijalankan |
+| `error while loading shared libraries` | `playwright install-deps chromium` sebagai root |
+| `Timeout ... waiting for div[role='textbox']` | sesi kedaluwarsa (cek penanda `Continue with Instagram`) atau selector berubah |
+| `Strict mode violation` pada `fill()` | lebih dari satu elemen cocok — pakai `.first` atau filter `aria-placeholder` |
+| `TargetClosedError: Target page, context or browser has been closed` | browser kehabisan memori, atau launch headed tanpa display |
+
+Saat selector perlu diperiksa ulang, ambil bukti visual:
 
 ```python
-# screenshot penuh untuk melihat kondisi halaman saat gagal
-await page.screenshot(path="debug.png", full_page=True)
-
-# trace lengkap (DOM snapshot + network + console), dibuka dengan:
-#   npx playwright show-trace trace.zip
-await context.tracing.start(screenshots=True, snapshots=True)
-# ... jalankan langkah yang bermasalah ...
-await context.tracing.stop(path="trace.zip")
+await page.screenshot(path="debug.png", full_page=True)   # kondisi halaman saat gagal
+await page.locator("div[role='textbox']").count()          # jumlah elemen yang cocok
 ```
 
-| Alat | Cara pakai |
-|---|---|
-| Inspector visual | `PWDEBUG=1 ~/threads-venv/bin/python skrip.py` (butuh display) |
-| Log API | `DEBUG=pw:api ~/threads-venv/bin/python skrip.py` |
-| Simpan HTML gagal | `await page.content()` lalu periksa secara offline |
-| Cek elemen | `await page.locator("selector").count()` |
-
-Selector yang sudah terverifikasi ada di
+Selector terverifikasi ada di
 `skills/social-media/threads-automation/references/playwright_selectors.md`.
-
-### 5.7 Troubleshooting
-
-| Gejala | Penyebab | Tindakan |
-|---|---|---|
-| `Looks like you launched a headed browser without having a XServer running` | `headless=False` di server tanpa display | jalankan `headless=True`; ekspor sesi di laptop operator |
-| `Executable doesn't exist at .../ms-playwright/chromium-.../chrome` | binary browser belum diunduh | `~/threads-venv/bin/playwright install chromium` |
-| `error while loading shared libraries: libgbm.so.1` | pustaka sistem belum dipasang | `~/threads-venv/bin/playwright install-deps chromium` (root) |
-| `Timeout 30000ms exceeded` pada `div[role='textbox']` | belum login atau selector berubah | cek penanda `Continue with Instagram`, ekspor ulang sesi, sesuaikan selector |
-| `Strict mode violation` pada `fill()` | lebih dari satu elemen cocok | pakai `.first`, `.last`, atau filter `aria-placeholder` |
-| `TargetClosedError: Target page, context or browser has been closed` | browser mati atau launch headed tanpa display | jalankan headless, pastikan memori cukup, cek ulang argumen launch |
-| `navigator.webdriver` masih `True` | init script dipasang setelah navigasi | panggil `add_init_script` sebelum `new_page()` pertama |
-| Login wall walau cookie sudah ada | fingerprint terdeteksi atau sesi kedaluwarsa | ekspor ulang `storage_state.json` |
-| Overlay `Posting...` masih tampil | balasan belum selesai dikirim | tunggu ~5 detik dan verifikasi teks ter-render sebelum melaporkan sukses |
-| Proses berhenti tanpa galat di server kecil | memori tidak cukup untuk Chromium | kurangi jumlah context paralel, jalankan satu browser per proses |
 
 ## 6. Arsitektur
 
