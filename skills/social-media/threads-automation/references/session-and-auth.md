@@ -2,6 +2,11 @@
 
 Two separate auth systems get confused with each other. Keep them apart.
 
+**None of the Meta API material below is required by the shipped workflow.**
+This distribution replies through a browser session; the token path is documented
+only to explain why the official API is a dead end for third-party replies, so it
+does not get re-litigated with another tool.
+
 | Path | What it authenticates | Can reply to a *third party's* post? |
 |---|---|---|
 | Browser `storage_state.json` (session cookie) | A real logged-in human web session | **Yes** — this is the only way |

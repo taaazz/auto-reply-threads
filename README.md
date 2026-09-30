@@ -9,7 +9,7 @@ Repositori ini adalah *distribution* profil — dapat dipasang di mesin lain
 melalui `hermes profile install`. Cakupan sengaja dibatasi pada dua kebutuhan
 produksi: **scraping Threads** dan **auto-reply**.
 
-- Versi: `0.2.1`
+- Versi: `0.3.0`
 - Kebutuhan minimum: Hermes Agent `>= 0.12.0`, Python `3.10+`
 - Lisensi: MIT
 
@@ -45,23 +45,35 @@ sebagai mirror yang dapat dibaca.
 
 ## 2. Konfigurasi
 
-Salin template dan isi nilainya:
+Distribusi ini **tidak memerlukan variabel lingkungan apa pun**. Alur kerja hanya
+butuh dua hal:
+
+1. **Sesi Threads** — berkas `storage_state.json`, dibuat dengan mengekspor sesi
+   login browser (lihat §4). Simpan di luar repositori; berkas ini sudah tercakup
+   `.gitignore`.
+2. **Model LLM** — spesifik per mesin, jadi tidak ikut di-ship. Konfigurasikan
+   sekali di mesin tujuan:
 
 ```bash
-cp ~/.hermes/profiles/promo-in/.env.template ~/.hermes/profiles/promo-in/.env
-$EDITOR ~/.hermes/profiles/promo-in/.env
+hermes -p promo-in setup
+hermes -p promo-in config set model.default <model-id>
+hermes -p promo-in config set model.provider <provider>
 ```
 
-| Variabel | Keterangan | Wajib |
-|---|---|---|
-| `ZERNIO_API_KEY` | Posting dan pembacaan Threads melalui Zernio | Tidak |
-| `SERPAPI_API_KEY` | Fallback pencarian | Tidak |
-| `FIRECRAWL_API_KEY` | Fallback scraping halaman | Tidak |
-| `HERMES_CUSTOM_API_COMMANDCODE_AI_API_KEY` | Kredensial provider LLM (OpenAI-compatible) | Tidak |
+Untuk endpoint OpenAI-compatible, tambahkan custom provider yang merujuk nama
+variabel lingkungan, bukan key literal:
 
-`config.yaml` hanya berisi referensi `${ENV_VAR}` dan tidak pernah memuat
-kredensial literal. Sesi login Threads bukan variabel lingkungan: simpan berkas
-`storage_state.json` di luar repositori (sudah tercakup `.gitignore`).
+```yaml
+custom_providers:
+  - name: my-provider
+    base_url: https://api.example.com/v1
+    key_env: MY_PROVIDER_API_KEY
+    model: <model-id>
+```
+
+`config.yaml` bawaan sengaja hanya berisi komentar dan `_config_version`. Tidak
+ada kredensial literal di dalamnya; bila perlu menyimpan secret, gunakan
+`~/.hermes/profiles/promo-in/.env` yang tidak pernah di-commit.
 
 ### Penyesuaian identitas brand
 
@@ -157,11 +169,10 @@ Struktur repositori:
 
 ```
 .
-├── distribution.yaml          manifest profil (versi, allowlist, env_requires)
-├── config.yaml                pengaturan Hermes — hanya referensi env
+├── distribution.yaml          manifest profil (versi, allowlist)
+├── config.yaml                konfigurasi Hermes — minimal, tanpa kredensial
 ├── SOUL.md, soul.md           persona dan identitas agen
 ├── README.md                  dokumen ini
-├── .env.template              template variabel lingkungan
 ├── .gitignore                 daftar berkas yang tidak pernah di-commit
 ├── memories/                  mirror memori pengguna (tidak ikut terpasang)
 └── skills/social-media/       lima skill Threads
@@ -208,9 +219,10 @@ git add -A
 git diff --cached --name-only | grep -E '\.env$|auth\.json|state\.db|storage_state|cookie|token|secret'
 ```
 
-Perintah tersebut harus tidak menghasilkan output. Catatan: `!.env.template`
-ditempatkan pada baris terakhir `.gitignore` karena Git menerapkan aturan
-pencocokan terakhir yang menang.
+Perintah tersebut harus tidak menghasilkan output. Catatan: aturan pengecualian
+pada `.gitignore` (mis. `!.env.template`) harus diletakkan di baris terakhir
+karena Git menerapkan aturan pencocokan terakhir yang menang — pola seperti
+`*.env.*` akan meniadakan pengecualian yang ditulis sebelumnya.
 
 ## 9. Pembaruan
 

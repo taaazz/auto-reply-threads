@@ -1,24 +1,14 @@
 name: promo-in
-version: 0.2.1
+version: 0.3.0
 description: "AI agent auto reply threads — HKI/merek/paten lead scraping + reply agent"
 hermes_requires: ">=0.12.0"
 author: "taaazz"
 license: "MIT"
 
-# Non-secret config only. Values live in the local .env (see .env.template).
-env_requires:
-  - name: ZERNIO_API_KEY
-    description: "Zernio API key (Threads posting/reading)"
-    required: false
-  - name: SERPAPI_API_KEY
-    description: "SerpAPI key (search fallback)"
-    required: false
-  - name: FIRECRAWL_API_KEY
-    description: "Firecrawl key (page scraping fallback)"
-    required: false
-  - name: HERMES_CUSTOM_API_COMMANDCODE_AI_API_KEY
-    description: "Custom OpenAI-compatible provider key"
-    required: false
+# No environment variables are required by this distribution.
+# Session state lives in storage_state.json (see README §2); the reply flow is
+# Playwright-driven and needs no third-party API keys.
+env_requires: []
 
 # Only these paths are installed/updated by `hermes profile install|update`.
 # Deliberately narrow: ONLY the Threads scraping + auto-reply skills ship.
