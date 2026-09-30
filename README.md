@@ -206,6 +206,6 @@ sepenuhnya menjadi tanggung jawab pengguna.
 
 ## Dokumentasi
 ai agent berhasil reply di akun orang lain
-<img width="250" height="400" alt="image" src="https://github.com/user-attachments/assets/96a56333-5f4d-43e4-bd47-9e2a7b23c568" />
+<img width="340" height="400" alt="image" src="https://github.com/user-attachments/assets/96a56333-5f4d-43e4-bd47-9e2a7b23c568" />
 
 
