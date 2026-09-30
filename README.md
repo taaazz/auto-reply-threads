@@ -204,3 +204,8 @@ dari jaringan lokal atau melalui residential proxy.
 Automasi browser tidak sejalan dengan Terms of Service Meta. Penggunaan
 sepenuhnya menjadi tanggung jawab pengguna.
 
+## Dokumentasi
+ai agent berhasil reply di akun orang lain
+<img width="1003" height="881" alt="image" src="https://github.com/user-attachments/assets/96a56333-5f4d-43e4-bd47-9e2a7b23c568" />
+
+
