@@ -204,33 +204,3 @@ dari jaringan lokal atau melalui residential proxy.
 Automasi browser tidak sejalan dengan Terms of Service Meta. Penggunaan
 sepenuhnya menjadi tanggung jawab pengguna.
 
-## 8. Keamanan
-
-Berkas berikut tidak pernah di-commit dan telah dicakup `.gitignore`:
-`.env`, `auth.json`, `state.db*`, `sessions/`, `logs/`, `cache/`, `bin/`,
-`skills/.hub/`, `storage_state*.json`, `threads_auth*.json`, `cookies*.json`,
-`*.pem`, `*.key`, serta setiap berkas yang memuat `token` atau `secret` pada
-namanya.
-
-Sebelum setiap commit, verifikasi daftar staged:
-
-```bash
-git add -A
-git diff --cached --name-only | grep -E '\.env$|auth\.json|state\.db|storage_state|cookie|token|secret'
-```
-
-Perintah tersebut harus tidak menghasilkan output. Catatan: aturan pengecualian
-pada `.gitignore` (mis. `!.env.template`) harus diletakkan di baris terakhir
-karena Git menerapkan aturan pencocokan terakhir yang menang — pola seperti
-`*.env.*` akan meniadakan pengecualian yang ditulis sebelumnya.
-
-## 9. Pembaruan
-
-```bash
-hermes profile update promo-in
-hermes profile info promo-in
-```
-
-`update` hanya menimpa path yang tercantum pada `distribution_owned`. Untuk
-penyesuaian khusus mesin, gunakan direktori `local/` — direktori tersebut
-milik pengguna dan tidak akan ditimpa.
