@@ -147,48 +147,52 @@ debug ada di [§5](#5-alur-penggunaan-playwright).
 
 ## 4. Penyiapan Playwright
 
-Tiga tahap: pasang di VPS, ekspor sesi di laptop, kirim berkas sesi ke VPS.
+Tiga tahap, dijalankan sekali: pasang di VPS (4.1), ekspor sesi di laptop (4.2),
+kirim berkas sesi ke VPS (4.3).
 
 ### 4.1 Pasang Playwright di VPS
 
 ```bash
-apt install -y python3 python3-venv python3-pip
-python3 -m venv ~/threads-venv
-~/threads-venv/bin/pip install playwright
-~/threads-venv/bin/playwright install chromium
+apt install -y python3 python3-venv python3-pip        # lewati bila sudah ada
+python3 -m venv /root/threads-venv
+/root/threads-venv/bin/pip install playwright
+/root/threads-venv/bin/playwright install chromium
 ```
 
-Terverifikasi: Playwright `1.63.0`, Chromium build `1243` (±400 MB di
-`~/.cache/ms-playwright`). Bila launch gagal dengan
-`error while loading shared libraries` (`libgbm.so.1`, `libnss3`):
+Terverifikasi: Python 3.12.3, Playwright `1.63.0`, Chromium `1243` di
+`~/.cache/ms-playwright`. Bila launch gagal dengan
+`error while loading shared libraries`:
 
 ```bash
-~/threads-venv/bin/playwright install-deps chromium
+/root/threads-venv/bin/playwright install-deps chromium
 ```
+
+Selanjutnya seluruh skrip di VPS dijalankan dengan `/root/threads-venv/bin/python`.
 
 ### 4.2 Ekspor sesi login di laptop
 
-Login manual satu kali di mesin berlayar, lalu simpan state:
-
 ```python
-# export_session.py — jalankan di laptop
-import asyncio
-from playwright.async_api import async_playwright
+# save_state_local.py — jalankan di laptop
+from playwright.sync_api import sync_playwright
+import json
 
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        page = await (await browser.new_context()).new_page()
-        await page.goto("https://www.threads.net/login")
-        input("Login manual di browser, lalu tekan Enter di terminal...")
-        await page.context.storage_state(path="storage_state.json")
-        await browser.close()
-
-asyncio.run(main())
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    context = browser.new_context()
+    page = context.new_page()
+    page.goto("https://www.threads.net")
+    input("Login manual di browser, lalu tekan Enter setelah feed Threads terlihat...")
+    with open("storage_state.json", "w") as f:
+        json.dump(context.storage_state(), f)
+    browser.close()
 ```
 
-`headless=False` tidak bisa berjalan di VPS tanpa X server
-(`Missing X server or $DISPLAY`), karena itu tahap ini dilakukan di laptop.
+```bash
+python save_state_local.py
+```
+
+Tahap ini tidak bisa dijalankan di VPS: `headless=False` butuh X server dan gagal
+dengan `TargetClosedError` / `Missing X server or $DISPLAY`.
 
 ### 4.3 Kirim sesi ke VPS
 
@@ -196,7 +200,7 @@ asyncio.run(main())
 scp storage_state.json root@VPS:/root/storage_state.json
 ```
 
-Sesi mati bila logout, ganti password, atau diputus Meta. Bila muncul halaman
+Sesi mati bila logout, ganti password, atau diputus Meta — bila muncul halaman
 `Continue with Instagram`, ulangi 4.2 lalu 4.3.
 
 ## 5. Alur Penggunaan Playwright
@@ -208,49 +212,50 @@ Dengan venv dari [§4.1](#41-pasang-playwright-di-vps) dan sesi dari
 hermes -p promo-in chat
 ```
 
-Context browser yang dipakai selalu sama — tiga penyesuaian di dalamnya (User-Agent,
-viewport, `navigator.webdriver`) yang membuat sesi tidak cepat ditolak:
+Skrip balasan memuat sesi dari berkas `storage_state.json`:
 
 ```python
-browser = await p.chromium.launch(
-    headless=True,
-    args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
-)
-context = await browser.new_context(
-    storage_state="/root/storage_state.json",
-    user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
-    viewport={"width": 1280, "height": 800},
-)
-await context.add_init_script(
-    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-)
+browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+context = await browser.new_context(storage_state="/root/storage_state.json")
 page = await context.new_page()
 ```
 
-`add_init_script` harus dipanggil sebelum `new_page()`.
-
 ### Membalas satu postingan
 
-1. Buka `https://www.threads.net/@{username}/post/{post_id}` dengan
-   `wait_until="networkidle"`, lalu tunggu 4 detik.
+1. Buka permalink postingan lalu tunggu render:
+
+```python
+await page.goto("https://www.threads.net/@{username}/post/{post_id}", wait_until="networkidle")
+await page.wait_for_timeout(4000)
+```
+
 2. Pastikan tidak ada ajakan `Continue with Instagram`. Bila ada, sesi mati —
    ulangi [§4.2](#42-ekspor-sesi-login-di-laptop) dan [§4.3](#43-kirim-sesi-ke-vps).
-3. Isi kolom balasan lalu kirim:
+3. Isi kolom balasan dan kirim:
 
 ```python
 box = page.locator("div[role='textbox']").first
 await box.click()
 await box.fill(REPLY)
-await box.press("Enter")                      # alternatif: klik tombol Post
+await box.press("Enter")
+await page.wait_for_timeout(5000)
 ```
 
-4. Tunggu ~5 detik sampai overlay `Posting...` hilang, lalu pastikan teks balasan
-   benar-benar ter-render di dalam thread sebelum melaporkan sukses.
+4. Simpan bukti kirim:
+
+```python
+await page.screenshot(path="/root/reply_success.png")
+```
+
 5. Jeda 10–30 detik antar balasan dan variasikan kalimatnya.
 
 Isi balasan: 1–3 kalimat berisi fakta produk, tanpa ajakan DM dan tanpa tawaran
 konsultasi; arahkan ke `example.com` atau sebut `@yourbrand`.
+
+Bila login wall tetap muncul padahal `storage_state.json` masih ada, tambahkan
+tiga penyetelan stealth sebelum `new_page()` — User-Agent desktop, `viewport`
+1280x800, dan `navigator.webdriver = undefined`; polanya ada di
+`skills/social-media/threads-automation/references/session-and-auth.md`.
 
 ### Kalau bermasalah
 
@@ -263,11 +268,11 @@ konsultasi; arahkan ke `example.com` atau sebut `@yourbrand`.
 | `Strict mode violation` pada `fill()` | lebih dari satu elemen cocok — pakai `.first` atau filter `aria-placeholder` |
 | `TargetClosedError: Target page, context or browser has been closed` | browser kehabisan memori, atau launch headed tanpa display |
 
-Saat selector perlu diperiksa ulang, ambil bukti visual:
+Bila selector perlu diperiksa ulang:
 
 ```python
-await page.screenshot(path="debug.png", full_page=True)   # kondisi halaman saat gagal
-await page.locator("div[role='textbox']").count()          # jumlah elemen yang cocok
+await page.screenshot(path="/root/debug.png", full_page=True)   # kondisi halaman saat gagal
+await page.locator("div[role='textbox']").count()                # jumlah elemen yang cocok
 ```
 
 Selector terverifikasi ada di
