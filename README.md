@@ -147,42 +147,20 @@ debug ada di [§5](#5-alur-penggunaan-playwright).
 
 ## 4. Penyiapan Playwright
 
-Tiga langkah saja: pasang Playwright di VPS, ekspor sesi di laptop, kirim berkas
-sesi ke VPS.
+Tiga tahap: pasang di VPS, ekspor sesi di laptop, kirim berkas sesi ke VPS.
 
 ### 4.1 Pasang Playwright di VPS
 
 ```bash
+apt install -y python3 python3-venv python3-pip
 python3 -m venv ~/threads-venv
 ~/threads-venv/bin/pip install playwright
 ~/threads-venv/bin/playwright install chromium
 ```
 
-Cek cepat bahwa Chromium bisa dibuka:
-
-```bash
-~/threads-venv/bin/python - <<'EOF'
-import asyncio
-from playwright.async_api import async_playwright
-
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-        page = await (await browser.new_context()).new_page()
-        await page.goto("https://example.com")
-        print("OK:", await page.title())
-        await browser.close()
-
-asyncio.run(main())
-EOF
-```
-
-Keluaran `OK: Example Domain` berarti sudah siap. Versi terverifikasi: Python
-3.12, Playwright `1.63.0`, Chromium build `1243` (±400 MB di
-`~/.cache/ms-playwright`).
-
-Bila launch gagal dengan `error while loading shared libraries` (`libgbm.so.1`,
-`libnss3`, dan sejenisnya), pasang dependensi sistem sekali saja sebagai root:
+Terverifikasi: Playwright `1.63.0`, Chromium build `1243` (±400 MB di
+`~/.cache/ms-playwright`). Bila launch gagal dengan
+`error while loading shared libraries` (`libgbm.so.1`, `libnss3`):
 
 ```bash
 ~/threads-venv/bin/playwright install-deps chromium
@@ -190,8 +168,7 @@ Bila launch gagal dengan `error while loading shared libraries` (`libgbm.so.1`,
 
 ### 4.2 Ekspor sesi login di laptop
 
-Login tidak pernah dilakukan otomatis karena memicu CAPTCHA dan verifikasi dua
-faktor. Lakukan sekali di mesin yang punya layar:
+Login manual satu kali di mesin berlayar, lalu simpan state:
 
 ```python
 # export_session.py — jalankan di laptop
@@ -201,34 +178,26 @@ from playwright.async_api import async_playwright
 async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
+        page = await (await browser.new_context()).new_page()
         await page.goto("https://www.threads.net/login")
-        input("Login manual di jendela browser, lalu tekan Enter di terminal...")
-        await context.storage_state(path="storage_state.json")
-        print("tersimpan")
+        input("Login manual di browser, lalu tekan Enter di terminal...")
+        await page.context.storage_state(path="storage_state.json")
         await browser.close()
 
 asyncio.run(main())
 ```
 
-`headless=False` hanya bisa di mesin berlayar. Di server tanpa X server, launch
-gagal dengan `Looks like you launched a headed browser without having a XServer
-running` — karena itu ekspor dilakukan di laptop, bukan di VPS.
-
-Di Windows, `UnicodeEncodeError` saat mencetak emoji muncul **setelah** berkas
-tersimpan; ekspornya sudah berhasil, tidak perlu mengulang login.
+`headless=False` tidak bisa berjalan di VPS tanpa X server
+(`Missing X server or $DISPLAY`), karena itu tahap ini dilakukan di laptop.
 
 ### 4.3 Kirim sesi ke VPS
 
 ```bash
 scp storage_state.json root@VPS:/root/storage_state.json
-ssh root@VPS 'chmod 600 /root/storage_state.json'
 ```
 
-Selesai. `storage_state.json` disimpan di luar repositori dan sudah tercakup
-`.gitignore`. Sesi mati bila logout, ganti password, atau diputus Meta — bila
-muncul halaman `Continue with Instagram`, ulangi 4.2 lalu 4.3.
+Sesi mati bila logout, ganti password, atau diputus Meta. Bila muncul halaman
+`Continue with Instagram`, ulangi 4.2 lalu 4.3.
 
 ## 5. Alur Penggunaan Playwright
 
