@@ -55,7 +55,7 @@ Distribusi ini **tidak memerlukan variabel lingkungan apa pun**. Alur kerja hany
 butuh dua hal:
 
 1. **Sesi Threads** — berkas `storage_state.json`, dibuat dengan mengekspor sesi
-   login browser (lihat [§4.2](#42-ekspor-sesi-login-di-laptop)).
+   login browser (lihat [§4.2](#42-di-laptop-ekspor-sesi-login)).
    Simpan di luar repositori; berkas ini sudah tercakup `.gitignore`.
 2. **Model LLM** — spesifik per mesin, jadi tidak ikut di-ship. Konfigurasikan
    sekali di mesin tujuan:
@@ -147,32 +147,46 @@ debug ada di [§5](#5-alur-penggunaan-playwright).
 
 ## 4. Penyiapan Playwright
 
-Tiga tahap, dijalankan sekali: pasang di VPS (4.1), ekspor sesi di laptop (4.2),
-kirim berkas sesi ke VPS (4.3).
+Dijalankan sekali saja. Setiap langkah ditandai **di mana** dijalankan dan apa
+**tanda berhasil**-nya. Nomor versi di bawah adalah hasil verifikasi di mesin ini.
 
-### 4.1 Pasang Playwright di VPS
+### 4.1 Di VPS: pasang Playwright
 
-```bash
-apt install -y python3 python3-venv python3-pip        # lewati bila sudah ada
-python3 -m venv /root/threads-venv
-/root/threads-venv/bin/pip install playwright
-/root/threads-venv/bin/playwright install chromium
-```
+| # | Perintah | Fungsi | Tanda berhasil |
+|---|---|---|---|
+| 1 | `python3 -V` | pastikan Python tersedia | `Python 3.12.3` |
+| 2 | `apt update && apt install -y python3 python3-venv python3-pip` | hanya bila Python/pip belum ada | `dpkg -l` menampilkan `ii python3-venv` |
+| 3 | `python3 -m venv /root/threads-venv` | buat virtualenv terpisah | `/root/threads-venv/bin/pip` ada |
+| 4 | `/root/threads-venv/bin/pip install playwright` | pasang paket Playwright ke venv | `Successfully installed playwright-1.63.0` |
+| 5 | `/root/threads-venv/bin/playwright install chromium` | unduh Chromium (±114 MiB) | `Chromium 1243 downloaded to .../ms-playwright/chromium-1243` |
+| 6 | `/root/threads-venv/bin/playwright --version` | verifikasi instalasi | `Version 1.63.0` |
 
-Terverifikasi: Python 3.12.3, Playwright `1.63.0`, Chromium `1243` di
-`~/.cache/ms-playwright`. Bila launch gagal dengan
-`error while loading shared libraries`:
+Langkah 3 tidak boleh dilewati. `pip install playwright` tanpa venv langsung gagal
+dengan `error: externally-managed-environment` (PEP 668).
+
+Bila launch gagal dengan `error while loading shared libraries: libgbm.so.1` atau
+`libnss3`:
 
 ```bash
 /root/threads-venv/bin/playwright install-deps chromium
 ```
 
-Selanjutnya seluruh skrip di VPS dijalankan dengan `/root/threads-venv/bin/python`.
+Seluruh skrip di VPS dijalankan dengan `/root/threads-venv/bin/python`, bukan
+`python3`. `python3` sistem tidak memuat paket Playwright dan berakhir dengan
+`ModuleNotFoundError: No module named 'playwright'`.
 
-### 4.2 Ekspor sesi login di laptop
+### 4.2 Di laptop: ekspor sesi login
+
+| # | Perintah | Fungsi | Tanda berhasil |
+|---|---|---|---|
+| 1 | `python -m pip install playwright` | pasang paket Playwright | `Successfully installed playwright-...` |
+| 2 | `python -m playwright install chromium` | unduh Chromium | `Chromium 1243 downloaded ...` |
+| 3 | `python save_state_local.py` | login manual, lalu simpan sesi | `storage_state.json` muncul di folder kerja |
+| 4 | buka `storage_state.json` | pastikan sesi tersimpan | isinya memuat `"cookies"` dan `"sessionid"` |
+
+Isi `save_state_local.py`:
 
 ```python
-# save_state_local.py — jalankan di laptop
 from playwright.sync_api import sync_playwright
 import json
 
@@ -187,32 +201,60 @@ with sync_playwright() as p:
     browser.close()
 ```
 
-```bash
-python save_state_local.py
-```
+Alurnya: jendela Chromium terbuka ke threads.net -> login manual (selesaikan 2FA
+bila ada) -> kembali ke terminal dan tekan Enter -> berkas tersimpan. Bila isi
+berkasnya tidak memuat `"sessionid"`, login belum berhasil, ulangi langkah 3.
 
 Tahap ini tidak bisa dijalankan di VPS: `headless=False` butuh X server dan gagal
 dengan `TargetClosedError` / `Missing X server or $DISPLAY`.
 
 ### 4.3 Kirim sesi ke VPS
 
-```bash
-scp storage_state.json root@VPS:/root/storage_state.json
-```
+| # | Perintah | Dijalankan di | Tanda berhasil |
+|---|---|---|---|
+| 1 | `scp storage_state.json root@<IP_VPS>:/root/storage_state.json` | laptop | tanpa galat, ditanya password VPS |
+| 2 | `ls -l /root/storage_state.json` | VPS | berkas ada, ukuran ±11 KB |
 
 Sesi mati bila logout, ganti password, atau diputus Meta — bila muncul halaman
 `Continue with Instagram`, ulangi 4.2 lalu 4.3.
 
+### 4.4 Salin-tempel sekali jalan
+
+```bash
+# 1. VPS baru, dari nol
+ssh root@<IP_VPS>
+apt update && apt install -y python3 python3-venv python3-pip
+python3 -m venv /root/threads-venv
+/root/threads-venv/bin/pip install playwright
+/root/threads-venv/bin/playwright install chromium
+/root/threads-venv/bin/playwright --version        # harus: Version 1.63.0
+```
+
+```bash
+# 2. Laptop: ekspor sesi
+python -m pip install playwright && python -m playwright install chromium
+python save_state_local.py                         # login manual, lalu tekan Enter
+scp storage_state.json root@<IP_VPS>:/root/storage_state.json
+```
+
+```bash
+# 3. VPS: jalankan
+ls -l /root/storage_state.json                     # ±11 KB
+/root/threads-venv/bin/python /root/auto_reply_test.py
+```
+
 ## 5. Alur Penggunaan Playwright
 
-Dengan venv dari [§4.1](#41-pasang-playwright-di-vps) dan sesi dari
+Dengan venv dari [§4.1](#41-di-vps-pasang-playwright) dan sesi dari
 [§4.3](#43-kirim-sesi-ke-vps), agen siap dipakai:
 
 ```bash
 hermes -p promo-in chat
 ```
 
-Skrip balasan memuat sesi dari berkas `storage_state.json`:
+Skrip di VPS dijalankan dengan `/root/threads-venv/bin/python` — lihat catatan di
+[§4.1](#41-di-vps-pasang-playwright). Skrip balasan memuat sesi dari berkas
+`storage_state.json`:
 
 ```python
 browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
@@ -230,7 +272,7 @@ await page.wait_for_timeout(4000)
 ```
 
 2. Pastikan tidak ada ajakan `Continue with Instagram`. Bila ada, sesi mati —
-   ulangi [§4.2](#42-ekspor-sesi-login-di-laptop) dan [§4.3](#43-kirim-sesi-ke-vps).
+   ulangi [§4.2](#42-di-laptop-ekspor-sesi-login) dan [§4.3](#43-kirim-sesi-ke-vps).
 3. Isi kolom balasan dan kirim:
 
 ```python
@@ -267,6 +309,7 @@ tiga penyetelan stealth sebelum `new_page()` — User-Agent desktop, `viewport`
 | `Timeout ... waiting for div[role='textbox']` | sesi kedaluwarsa (cek penanda `Continue with Instagram`) atau selector berubah |
 | `Strict mode violation` pada `fill()` | lebih dari satu elemen cocok — pakai `.first` atau filter `aria-placeholder` |
 | `TargetClosedError: Target page, context or browser has been closed` | browser kehabisan memori, atau launch headed tanpa display |
+| `ModuleNotFoundError: No module named 'playwright'` | skrip dijalankan dengan `python3` sistem — pakai `/root/threads-venv/bin/python` |
 
 Bila selector perlu diperiksa ulang:
 
