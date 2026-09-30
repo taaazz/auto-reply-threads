@@ -2,12 +2,15 @@
 
 Use this format when outputting leads for downstream processing (CSV, database, CRM).
 
+All handles and IDs below are placeholders — never paste a real user's handle or a
+resulting post into this repository.
+
 ## Required Fields
 
 ```markdown
 ---
-post_id: <string>          # Threads post ID (e.g., "DaRgErUk1pP")
-username: <string>         # With @ prefix (e.g., "@senseibranding")
+post_id: <string>          # Threads post ID (e.g., "AbCdEfGhIjK")
+username: <string>         # With @ prefix (e.g., "@example_user")
 url: <string>              # Full URL to the post
 caption: <string>          # Full caption text (trimmed to 500 chars)
 matched_topic: <string[]>  # Which topic keywords matched
@@ -20,12 +23,12 @@ timestamp: <ISO8601>       # When the lead was scraped
 
 ```markdown
 ---
-post_id: "DaRgErUk1pP"
-username: "@senseibranding"
-url: "https://www.threads.net/@senseibranding/post/DaRgErUk1pP"
-caption: "Hi threads, pertemukan aku dengan agency yang biasa handle pendaftaran merek atau HAKI"
-matched_topic: ["pendaftaran merek", "haki"]
-matched_intent: ["rekomendasi", "spill"]
+post_id: "AbCdEfGhIjK"
+username: "@example_user"
+url: "https://www.threads.net/@example_user/post/AbCdEfGhIjK"
+caption: "Ada yang bisa bantu daftar merek? Sudah coba sendiri tapi bingung isinya"
+matched_topic: ["daftar merek"]
+matched_intent: ["bisa bantu"]
 timestamp: "2026-09-28T10:30:00Z"
 ---
 ```
@@ -34,7 +37,7 @@ timestamp: "2026-09-28T10:30:00Z"
 
 ```csv
 post_id,username,url,caption,matched_topic,matched_intent,timestamp
-DaRgErUk1pP,"@senseibranding","https://www.threads.net/@senseibranding/post/DaRgErUk1pP","Hi threads, pertemukan aku dengan agency yang biasa handle pendaftaran merek atau HAKI","[\"pendaftaran merek\", \"haki\"]","[\"rekomendasi\", \"spill\"]","2026-09-28T10:30:00Z"
+AbCdEfGhIjK,"@example_user","https://www.threads.net/@example_user/post/AbCdEfGhIjK","Ada yang bisa bantu daftar merek? Sudah coba sendiri tapi bingung isinya","[\"daftar merek\"]","[\"bisa bantu\"]","2026-09-28T10:30:00Z"
 ```
 
 ## Validation Rules

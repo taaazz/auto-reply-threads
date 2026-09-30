@@ -45,6 +45,19 @@ exclude_keywords:
   - "order sekarang"
   - "kontak kami"
   - "minat hubungi"
+  # penjual/agensi yang menyamar sebagai pencari jasa (lolos filter awal)
+  - "chat aku"
+  - "chat saya"
+  - "bisa chat"
+  - "chat yaa"
+  - "chat ya kak"
+  - "konsul dulu"
+  - "konsul gratis"
+  - "konsultasi gratis"
+  - "gratiss"
+  - "jasa kami"
+  - "menerima jasa"
+  - "open jasa"
 
 # === Username Exclusions ===
 # Accounts with these in their username are always filtered out
@@ -58,3 +71,10 @@ exclude_usernames:
   - "kemenkum"
   - "official"
   - "patenindo"
+
+# === Self Accounts ===
+# Handle akun sendiri: postingannya tidak pernah dianggap lead, supaya agen tidak
+# membalas postingannya sendiri. Isi tanpa "@".
+
+self_accounts:
+  - "yourbrand"

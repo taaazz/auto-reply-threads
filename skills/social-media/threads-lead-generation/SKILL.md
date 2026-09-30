@@ -25,7 +25,9 @@ Automated discovery of potential customers/leads on Threads by searching for hig
 3. **Extraction Method**:
    - Use Playwright to load the page and perform scrolling to load more results.
    - Extract post data from `window.__NEXT_DATA__` JSON for higher reliability than DOM parsing.
-4. **Strict Filtering**:
+4. **Self-Account Exclusion**: discard posts from your own handles (default
+   placeholder `yourbrand`) so the agent never replies to its own posts.
+5. **Strict Filtering**:
    - **Topic Match**: Caption must contain target keywords (e.g., "daftar merek", "hki").
    - **Intent Match**: Caption must contain "intent" keywords (e.g., "rekomendasi", "mau daftar", "bisa bantu").
    - **Competitor Filter**: Exclude posts containing "promo", "terima jasa", "dm saya", "harga murah".
@@ -39,10 +41,14 @@ Automated discovery of potential customers/leads on Threads by searching for hig
 
 ## Verification
 
-- Lead is valid if: (Topic Match AND Intent Match) AND (NOT Competitor Filter).
+- Lead is valid if: (Topic Match AND Intent Match) AND (NOT Competitor Filter)
+  AND (username is not a self-account).
 - Output must include `post_id`, `username`, and `url` (https://www.threads.net/@username/post/post_id).
 
 ### Support Files
+- `scripts/threads-scrape-playwright.py`: Runnable discovery script (Playwright,
+  reads the session from `/root/storage_state.json`, `--self-accounts` to exclude
+  your own handles, `--out` to save JSON).
 - `references/threads-lead-keywords.yml`: Canonical keyword list.  
 - `scripts/threads-scrape-verify.js`: Self‑check script that validates JSON extraction before publishing.  
 - `templates/threads-lead-template.md`: Boilerplate result format for downstream processing.

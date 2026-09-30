@@ -252,6 +252,48 @@ Dengan venv dari [§4.1](#41-di-vps-pasang-playwright) dan sesi dari
 hermes -p promo-in chat
 ```
 
+Tahap discovery mencari postingan yang layak dibalas, lalu tahap reply mengirim
+balasannya. Keduanya memakai Playwright dan sesi yang sama.
+
+### Mencari postingan (scraping)
+
+Alur: buka `https://www.threads.net/search?q=<kata kunci>&serp_type=default` per
+kata kunci, tunggu render, scroll dua kali, lalu ekstrak post dari payload JSON
+(`script[type="application/json"]`). Ekstraksi dari JSON dipakai, bukan dari DOM,
+karena nama class Threads sering berubah.
+
+| # | Perintah | Fungsi | Tanda berhasil |
+|---|---|---|---|
+| 1 | `/root/threads-venv/bin/python skills/social-media/threads-lead-generation/scripts/threads-scrape-playwright.py` | cari lead untuk semua kata kunci bawaan | satu baris `<kata kunci>: N lead` per kata kunci |
+| 2 | `... --keywords "daftar merek" "paten" --limit 5` | batasi kata kunci dan jumlah lead | JSON berisi `post_id`, `username`, `url`, `caption` |
+| 3 | `... --self-accounts <handle_anda>` | kecualikan postingan akun sendiri | postingan akun sendiri tidak muncul di hasil |
+| 4 | `... --out leads.json` | simpan hasil ke berkas | `N lead ditulis ke leads.json` |
+
+Urutan penyaringan: caption harus memuat kata kunci topik **dan** kata kunci niat,
+lalu dibuang bila memuat kata jualan/promo, memuat pola akun jasa, atau username-nya
+mengandung `legal`, `konsultan`, `advokat`, `official`. Daftar lengkap ada di
+`references/threads-lead-keywords.yml`.
+
+Contoh keluaran (handle disamarkan):
+
+```json
+[
+  {
+    "post_id": "AbCdEfGhIjK",
+    "username": "@example_user",
+    "url": "https://www.threads.net/@example_user/post/AbCdEfGhIjK",
+    "keyword": "daftar merek",
+    "caption": "Ada yang bisa bantu daftar merek? Sudah coba sendiri tapi bingung isinya"
+  }
+]
+```
+
+Scraping bersifat baca saja: hasilnya tetap keluar walau sesi sudah kedaluwarsa,
+dan lebih banyak bila sesi masih hidup. Karena itu lolosnya scraping bukan bukti
+sesi masih valid — hanya jalur balasan yang membuktikan itu. Bila halaman
+pencarian mengembalikan nol hasil, periksa dulu apakah muncul penanda
+`Continue with Instagram` atau tidak, lalu sesuaikan kata kuncinya.
+
 Skrip di VPS dijalankan dengan `/root/threads-venv/bin/python` — lihat catatan di
 [§4.1](#41-di-vps-pasang-playwright). Skrip balasan memuat sesi dari berkas
 `storage_state.json`:
@@ -345,7 +387,7 @@ tombol Enter.
 | Skill | Fungsi | Berkas pendukung |
 |---|---|---|
 | `threads-automation` | Alur kerja scraping dan engagement end-to-end | `references/keyword-guide.md`, `references/playwright_selectors.md`, `references/session-and-auth.md`, `references/json-pathing.md` |
-| `threads-lead-generation` | Ekstraksi lead berintensi tinggi | `references/threads-lead-keywords.yml`, `templates/threads-lead-template.md`, `scripts/threads-scrape-verify.js` |
+| `threads-lead-generation` | Ekstraksi lead berintensi tinggi | `references/threads-lead-keywords.yml`, `templates/threads-lead-template.md`, `scripts/threads-scrape-playwright.py`, `scripts/threads-scrape-verify.js` |
 | `threads-lead-engagement` | Riset dan pembalasan lead | — |
 | `threads-engagement-automation` | Orkestrasi discovery dan reply | — |
 | `threads-reply-agent` | Auto-reply khusus postingan merek/HKI | — |
